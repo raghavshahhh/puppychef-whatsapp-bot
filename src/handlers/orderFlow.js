@@ -123,7 +123,11 @@ class OrderFlow {
         tempItem: null
       });
     }
-    return conversations.get(phone);
+    // Ensure loaded conversations have all required fields
+    const conv = conversations.get(phone);
+    if (conv.lastResponseTime === undefined) conv.lastResponseTime = 0;
+    if (conv.language === undefined) conv.language = 'english';
+    return conv;
   }
 
   addMessage(phone, role, content) {
@@ -379,7 +383,7 @@ class OrderFlow {
     }
   }
 
-  getConversation(phone) {
+  getConversationExport(phone) {
     return conversations.get(phone);
   }
 }
