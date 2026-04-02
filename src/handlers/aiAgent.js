@@ -221,6 +221,37 @@ async function handleMessage(phone, userText, messageId = null) {
   return reply;
 }
 
+// Check if user is asking for image/photo
+function isAskingForImage(text) {
+  const lower = text.toLowerCase();
+  const imageWords = ['photo', 'image', 'pic', 'picture', 'dekho', 'dikhao', 'photo dikhao', 'kaisa dikhta hai', 'kya dikhta hai', 'sample', 'example'];
+  return imageWords.some(word => lower.includes(word));
+}
+
+// Get image URL for item
+function getImageForItem(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes('cake') || lower.includes('birthday')) {
+    return {
+      url: 'https://images.unsplash.com/photo-1548199569-3f1c1f55cca6?w=800',
+      caption: '🎂 Dog Birthday Cake - Freshly baked with pet-safe ingredients!'
+    };
+  }
+  if (lower.includes('pupcake') || lower.includes('cupcake')) {
+    return {
+      url: 'https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=800',
+      caption: '🧁 Pupcakes - Pack of 6, perfect for sharing!'
+    };
+  }
+  if (lower.includes('treat') || lower.includes('biscuit') || lower.includes('jerky')) {
+    return {
+      url: 'https://images.unsplash.com/photo-1582798358481-d199fb7347bb?w=800',
+      caption: '🦴 Healthy Treats - Made with love for your furry friend!'
+    };
+  }
+  return null;
+}
+
 // Clear old conversations every hour
 setInterval(() => {
   const oneHourAgo = Date.now() - 3600000;
@@ -233,4 +264,4 @@ setInterval(() => {
   }
 }, 3600000);
 
-module.exports = { handleMessage, detectLanguage };
+module.exports = { handleMessage, detectLanguage, isAskingForImage, getImageForItem };

@@ -12,6 +12,7 @@ const BOT_MODE = process.env.BOT_MODE || 'ai';
 const MENU = require('./src/config/menu');
 const orderFlow = require('./src/handlers/orderFlow');
 const aiAgent = require('./src/handlers/aiAgent');
+const { getMenuShort, getItemDetails } = require('./src/config/menuEnhanced');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -84,17 +85,30 @@ app.post('/webhook', async (req, res) => {
 
         // Process message with AI Agent (smart) or OrderFlow (structured)
         let response;
+        let imageToSend = null;
+
         if (BOT_MODE === 'ai') {
           response = await aiAgent.handleMessage(from, text, msgId);
+
+          // Check if user wants to see product image
+          if (aiAgent.isAskingForImage(text)) {
+            imageToSend = aiAgent.getImageForItem(text);
+          }
         } else {
           response = await orderFlow.handleMessage(from, text, msgId);
         }
 
-        // Only send if we got a response (not rate limited or duplicate)
+        // Send text response
         if (response) {
           await sendWhatsAppMessage(from, response);
         } else {
-          console.log(`[SKIP] No response for ${from} (rate limit or duplicate)`);
+          console.log(`[SKIP] No text response for ${from}`);
+        }
+
+        // Send image if requested
+        if (imageToSend) {
+          console.log(`[IMAGE] Sending image to ${from}: ${imageToSend.url}`);
+          await sendWhatsAppImage(from, imageToSend.url, imageToSend.caption);
         }
       }
     }
@@ -110,6 +124,7 @@ app.post('/webhook', async (req, res) => {
 // WHATSAPP MESSAGE SENDER
 // ============================================
 
+// Send text message
 async function sendWhatsAppMessage(to, message) {
   try {
     if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
@@ -142,6 +157,42 @@ async function sendWhatsAppMessage(to, message) {
     console.log('✅ Message sent:', response.data?.messages?.[0]?.id);
   } catch (error) {
     console.error('❌ Failed to send message:', error.response?.data || error.message);
+  }
+}
+
+// Send image message
+async function sendWhatsAppImage(to, imageUrl, caption = '') {
+  try {
+    if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+      console.log('⚠️ WhatsApp credentials not configured. Image would be sent:');
+      console.log(`To: ${to}`);
+      console.log(`Image: ${imageUrl}`);
+      return;
+    }
+
+    const url = `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`;
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: to,
+      type: 'image',
+      image: {
+        link: imageUrl,
+        caption: caption
+      }
+    };
+
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('✅ Image sent:', response.data?.messages?.[0]?.id);
+  } catch (error) {
+    console.error('❌ Failed to send image:', error.response?.data || error.message);
   }
 }
 
