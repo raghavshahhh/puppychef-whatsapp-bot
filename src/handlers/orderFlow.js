@@ -1,5 +1,4 @@
-// Order Flow with NVIDIA NIM AI Integration
-// Uses NVIDIA NIM API when available, falls back to warm, natural responses
+// Order Flow with NVIDIA NIM AI Integration + Deduplication + Rate Limiting
 
 const MENU = require('../config/menu');
 const nvidia = require('./nvidiaNim');
@@ -8,8 +7,13 @@ const path = require('path');
 
 // Storage
 const conversations = new Map();
+const processedMessages = new Set();
 const ORDERS_FILE = path.join(__dirname, '../models/orders.json');
 const STATE_FILE = path.join(__dirname, '../models/conversations.json');
+
+// Rate limiting config
+const RATE_LIMIT_MS = 3000;
+const MESSAGE_EXPIRY_MS = 60000;
 
 // Load saved conversations
 function loadConversations() {
@@ -25,7 +29,6 @@ function loadConversations() {
   }
 }
 
-// Save conversations to file
 function saveConversations() {
   try {
     const data = {};
@@ -38,7 +41,6 @@ function saveConversations() {
   }
 }
 
-// Load on startup
 loadConversations();
 
 // Ensure orders file exists
@@ -49,122 +51,49 @@ if (!fs.existsSync(ORDERS_FILE)) {
   fs.writeFileSync(ORDERS_FILE, '[]');
 }
 
-// Professional + Friendly response variations (polished, warm tone)
-const RESPONSES = {
+// Detect language from text
+function detectLanguage(text) {
+  const hasHindi = /[\u0900-\u097F]/.test(text);
+  const hinglishWords = ['haan', 'nahi', 'bata', 'kaise', 'kya', 'mujhe', 'hai', 'mein', 'aap', 'hoga', 'kar', 'rha', 'jarur', 'thoda', 'bahut', 'accha', 'theek', 'chahiye', 'bhejo', 'dekh', 'samajh', 'kya', 'ho', 'gaya', 'bhai', 'yaar', 'bas', 'abhi', 'phir', 'matlab', 'chal', 'thik', 'badiya', 'sahi', 'galat', 'kaun', 'kahan', 'kab', 'kyu', 'kaise', 'kitna', 'sab', 'kuch', 'bahar', 'andar', 'upar', 'neeche'];
+  const lowerText = text.toLowerCase();
+  const isHinglish = hinglishWords.some(word => lowerText.includes(word));
+  return hasHindi || isHinglish ? 'hinglish' : 'english';
+}
+
+// Response templates - English
+const RESPONSES_EN = {
   greetings: [
-    `Hello! Welcome to Puppychef 🐕
-
-Delhi's favourite pet bakery - where we craft fresh, healthy cakes & treats for your furry companions 🎂🦴
-
-How may I help you today?`,
-    `Hi there! 👋 Thank you for reaching out to Puppychef.
-
-We specialize in custom pet cakes, treats, and nutritious meals for your beloved pets 🐾
-
-What would you like to order?`,
-    `Welcome to Puppychef! 🎂
-
-Freshly baked with love for your pets ❤️
-
-Please let me know what you're looking for - cakes, treats, or pet food?`,
-    `Good day! 🐕 Puppychef at your service.
-
-We'd love to make something special for your pet!
-
-How can we assist you today?`
+    `Hello! Welcome to Puppychef 🐕\n\nDelhi's favourite pet bakery - where we craft fresh, healthy cakes & treats for your furry companions 🎂🦴\n\nHow may I help you today?`,
+    `Hi there! 👋 Thank you for reaching out to Puppychef.\n\nWe specialize in custom pet cakes, treats, and nutritious meals for your beloved pets 🐾\n\nWhat would you like to order?`
   ],
-  menuPrompts: [
-    `Please take a look at our menu and let us know what interests you 😊`,
-    `Here are our offerings - which category would you like to explore? 👇`,
-    `Feel free to browse our selection below 🐾`,
-    `Our menu is ready for you - what catches your eye? 🎂`
-  ],
-  categoryAck: {
-    1: [`🎂 Custom Cakes - Excellent choice! Which cake would you like to see?`, `Wonderful! Our custom cakes are freshly baked 🎂 Which one interests you?`, `Perfect! Let's find the ideal cake for your pet 🎉`],
-    2: [`🦴 Treats & Biscuits - Great selection! Which treat would you prefer?`, `Healthy treats coming up! 🐕 Which option would you like?`, `Wonderful choice for your pet's snack time 🦴`],
-    3: [`🍖 Pet Food - Nutrition first! Which meal option works for you?`, `Healthy meals for your pet 🥘 Please select an option:`, `Great for your pet's daily nutrition 🍲`],
-    4: [`☕ Cafe - While your pet enjoys their treat! 😊`, `For you! Our cafe selection ☕`, `Perfect! Something for the pet parent too ☕`]
-  },
-  itemConfirm: [
-    `Excellent choice! 🎉`, `Perfect selection! 🐾`, `Wonderful! 👌`, `Lovely choice! 🎂`
-  ],
-  customizationAsk: {
-    cake: `Wonderful choice! 🎂 To customize your cake, please provide:
-
-1️⃣ Pet's name (for the cake)
-2️⃣ Flavor preference (Chicken, Mutton, Peanut Butter)
-3️⃣ Size (Small/Medium/Large)
-4️⃣ Message for the cake (optional)
-
-Please share these details when you're ready 😊`,
-    default: `Great choice! 🎉 How many would you like?`
-  },
-  quantityAsk: [
-    `How many would you like? 😊`, `Please let us know the quantity 🛒`, `How many shall we prepare for you? 👇`
-  ],
-  addressAsk: [
-    `Perfect! 🛒 Please share your delivery address:
-
-(Full address with pincode)
-
-Or type "pickup" if you'd prefer to collect from our Safdarjung Enclave store 📍`,
-    `Almost there! Please provide your delivery address 📍
-
-(Include pincode for faster delivery)
-
-Store pickup available at Safdarjung Enclave 🏪`
-  ],
-  confirmAsk: (orderSummary, total) => `📋 Order Summary:
-
-${orderSummary}
-
-💰 Total: ₹${total}
-
-Does everything look correct?
-
-✅ Reply YES to confirm
-❌ Reply NO to make changes`,
-  orderConfirmed: (orderId, total) => [
-    `✅ Order Confirmed! Thank you for choosing Puppychef 🎉
-
-🔖 Order ID: ${orderId}
-💰 Total: ₹${total}
-
-We'll contact you shortly to confirm delivery timing.
-
-Your pet is going to love it! 🐕🎂
-
-Need anything else? Just say "Hi" 👋`,
-    `🎉 Order Placed Successfully!
-
-🔖 Order ID: ${orderId}
-💰 Amount: ₹${total}
-
-Thank you for trusting Puppychef ❤️
-
-Our team will reach out for delivery coordination.
-
-Have a wonderful day! 🐾`
-  ],
-  invalidCategory: [
-    `Please select a valid option (1-4) 😊`,
-    `Kindly choose between 1, 2, 3, or 4 👆`,
-    `Please enter a number from 1 to 4 🎯`
-  ],
-  invalidItem: [
-    `Please select a, b, c, or d 😊`,
-    `Kindly choose one of the available letters 👆`,
-    `Please enter a letter (a-d) or type "back" to return to menu 🔙`
-  ],
-  needMoreInfo: (missing) => `Almost there! Could you please also provide ${missing.join(', ')}? 🐾`,
-  restart: [
-    `No problem! Let's start fresh 😊 How may I help you?`,
-    `Understood! Starting over for you 👋 What would you like to order?`,
-    `Of course! Let's try again 🐕 What can we get for your pet today?`
-  ]
+  menuPrompt: `Please take a look at our menu and let us know what interests you 😊`,
+  invalidCategory: `Please select a valid option (1-4) 😊`,
+  invalidItem: `Please select a, b, c, or d. Or type 'back' to see categories again.`,
+  quantityAsk: `How many would you like? 😊`,
+  addressAsk: `Perfect! 🛒 Please share your delivery address:\n\n(Full address with pincode)\n\nOr type "pickup" if you'd prefer to collect from our Safdarjung Enclave store 📍`,
+  restart: `No problem! Let's start fresh 😊 How may I help you?`,
+  confirmHelp: `Please reply YES ✅ to confirm your order or NO ❌ to cancel`
 };
 
-// Helper to get random response
+// Response templates - Hinglish
+const RESPONSES_HI = {
+  greetings: [
+    `Namaste! Puppychef mein aapka swagat hai 🐕\n\nDelhi ki favourite pet bakery - fresh cakes aur treats for your furry friends 🎂🦴\n\nMain aapki kya help kar sakta hu?`,
+    `Hello bhai! 👋 Puppychef se baat kar rahe ho.\n\nHum banate hain custom pet cakes, treats, aur healthy food 🐾\n\nKya order karna hai?`
+  ],
+  menuPrompt: `Menu dekh lo please, kya pasand aaya? 😊`,
+  invalidCategory: `1-4 mein se select karo 😊`,
+  invalidItem: `a, b, c, ya d select karo. "back" likho categories dekhne ke liye.`,
+  quantityAsk: `Kitne chahiye? 😊`,
+  addressAsk: `Perfect! 🛒 Address batao:\n\n(Pura address with pincode)\n\nYa "pickup" likho agar Safdarjung se collect karna hai 📍`,
+  restart: `Koi baat nahi! Fresh start karte hain 😊 Kya chahiye?`,
+  confirmHelp: `YES ✅ likho confirm karne ke liye ya NO ❌ cancel karne ke liye`
+};
+
+function getResponses(lang) {
+  return lang === 'hinglish' ? RESPONSES_HI : RESPONSES_EN;
+}
+
 const random = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 class OrderFlow {
@@ -188,12 +117,9 @@ class OrderFlow {
         phone,
         state: this.states.IDLE,
         messages: [],
-        order: {
-          items: [],
-          customerName: '',
-          address: '',
-          phone: phone
-        },
+        lastResponseTime: 0,
+        language: 'english',
+        order: { items: [], customerName: '', address: '', phone: phone },
         tempItem: null
       });
     }
@@ -205,144 +131,135 @@ class OrderFlow {
     conv.messages.push({ role, content, timestamp: new Date() });
   }
 
-  // Main handler - uses Gemini when available, falls back to warm responses
-  async handleMessage(phone, message) {
+  // Main handler - with DEDUPLICATION + RATE LIMITING
+  async handleMessage(phone, message, messageId = null) {
     const text = message.trim();
-    const conv = this.getConversation(phone);
+    
+    // DEDUPLICATION: Skip if already processed
+    const dedupKey = messageId || `${phone}:${text}:${Math.floor(Date.now()/5000)}`;
+    if (processedMessages.has(dedupKey)) {
+      console.log(`[DEDUP] Skipping duplicate: ${dedupKey}`);
+      return null;
+    }
+    processedMessages.add(dedupKey);
+    
+    // Cleanup old messages
+    if (processedMessages.size > 500) {
+      setTimeout(() => processedMessages.clear(), MESSAGE_EXPIRY_MS);
+    }
 
-    console.log(`[DEBUG] handleMessage: phone=${phone}, message="${text}", currentState=${conv.state}`);
+    const conv = this.getConversation(phone);
+    
+    // RATE LIMITING: Max 1 response per 3 seconds
+    const now = Date.now();
+    if (conv.lastResponseTime && (now - conv.lastResponseTime) < RATE_LIMIT_MS) {
+      console.log(`[RATE LIMIT] Too fast for ${phone}, waiting...`);
+      return null;
+    }
+    
+    // LANGUAGE DETECTION
+    conv.language = detectLanguage(text);
+    const R = getResponses(conv.language);
+
+    console.log(`[DEBUG] ${phone} | ${text} | lang=${conv.language} | state=${conv.state}`);
 
     this.addMessage(phone, 'user', text);
 
     // Reset commands
-    if (['hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'hii'].includes(text.toLowerCase())) {
+    if (['hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'hii', 'help'].includes(text.toLowerCase())) {
       conv.state = this.states.GREETING;
-      console.log(`[DEBUG] Reset command triggered, state set to GREETING`);
       const greeting = await this.generateGreeting(conv);
       this.addMessage(phone, 'assistant', greeting);
-      console.log(`[DEBUG] Returning greeting, state is now: ${conv.state}`);
+      conv.lastResponseTime = Date.now();
       return greeting;
     }
 
-    // Process based on current state (Gemini disabled - using professional fallback responses)
-    const aiResponse = null;
     let response;
     switch (conv.state) {
       case this.states.IDLE:
       case this.states.GREETING:
-        console.log(`[DEBUG] Calling handleGreeting`);
-        response = await this.handleGreeting(conv, text, aiResponse);
-        console.log(`[DEBUG] handleGreeting returned, state is now: ${conv.state}`);
+        response = await this.handleGreeting(conv, text, R);
         break;
       case this.states.SELECTING_CATEGORY:
-        response = await this.handleCategorySelection(conv, text, aiResponse);
+        response = await this.handleCategorySelection(conv, text, R);
         break;
       case this.states.SELECTING_ITEM:
-        response = await this.handleItemSelection(conv, text, aiResponse);
+        response = await this.handleItemSelection(conv, text, R);
         break;
       case this.states.CUSTOMIZING:
-        response = await this.handleCustomization(conv, text, aiResponse);
+        response = await this.handleCustomization(conv, text, R);
         break;
       case this.states.QUANTITY:
-        response = await this.handleQuantity(conv, text, aiResponse);
+        response = await this.handleQuantity(conv, text, R);
         break;
       case this.states.ADDRESS:
-        response = await this.handleAddress(conv, text, aiResponse);
+        response = await this.handleAddress(conv, text, R);
         break;
       case this.states.CONFIRM:
-        response = await this.handleConfirmation(conv, text, aiResponse);
+        response = await this.handleConfirmation(conv, text, R);
         break;
       default:
-        response = random(RESPONSES.greetings);
+        response = random(R.greetings);
     }
 
     this.addMessage(phone, 'assistant', response);
+    conv.lastResponseTime = Date.now();
     saveConversations();
     return response;
   }
 
-  buildContext(conv) {
-    return {
-      state: conv.state,
-      order: conv.order,
-      tempItem: conv.tempItem,
-      lastMessages: conv.messages.slice(-5)
-    };
-  }
-
   async generateGreeting(conv) {
-    // Try NVIDIA NIM first, then fallback to static responses
+    const R = getResponses(conv.language);
     try {
       const aiResponse = await nvidia.generateGreeting();
       if (aiResponse) return aiResponse;
     } catch (e) {
-      console.log('NVIDIA API failed, using fallback:', e.message);
+      console.log('NVIDIA API failed:', e.message);
     }
-    return random(RESPONSES.greetings);
+    return random(R.greetings);
   }
 
-  async handleGreeting(conv, text, aiResponse) {
-    const menuText = MENU.getMenuText();
-    // Transition to category selection and process the input
+  async handleGreeting(conv, text, R) {
     conv.state = this.states.SELECTING_CATEGORY;
-    // Now process the input as category selection
-    return await this.handleCategorySelection(conv, text, aiResponse);
+    return await this.handleCategorySelection(conv, text, R);
   }
 
-  async handleCategorySelection(conv, text, aiResponse) {
+  async handleCategorySelection(conv, text, R) {
     const categoryId = parseInt(text);
-
     if (isNaN(categoryId) || categoryId < 1 || categoryId > 4) {
-      return random(RESPONSES.invalidCategory) + "\n\n" + MENU.getMenuText();
+      return R.invalidCategory + "\n\n" + MENU.getMenuText();
     }
-
     const category = MENU.getCategoryById(categoryId);
     conv.currentCategory = categoryId;
     conv.state = this.states.SELECTING_ITEM;
-
-    // Try NVIDIA for dynamic category acknowledgment
-    let ack;
-    try {
-      ack = await nvidia.generateMenuPrompt(category.name);
-    } catch (e) {
-      ack = RESPONSES.categoryAck[categoryId] ? random(RESPONSES.categoryAck[categoryId]) : random(RESPONSES.itemConfirm);
-    }
-    return ack + "\n\n" + MENU.getCategoryItemsText(categoryId);
+    return R.menuPrompt + "\n\n" + MENU.getCategoryItemsText(categoryId);
   }
 
-  async handleItemSelection(conv, text, aiResponse) {
+  async handleItemSelection(conv, text, R) {
     const category = MENU.getCategoryById(conv.currentCategory);
     const letter = text.toLowerCase().charAt(0);
     const itemIndex = letter.charCodeAt(0) - 97;
-
     if (itemIndex < 0 || itemIndex >= category.items.length) {
-      return random(RESPONSES.invalidItem) + " Or type 'back' to see categories again.";
+      return R.invalidItem;
     }
-
     const item = category.items[itemIndex];
     conv.tempItem = { ...item, category: category.name };
-
-    // Check if customization needed
     if (item.customizations && item.customizations.length > 0) {
       conv.state = this.states.CUSTOMIZING;
-      return RESPONSES.customizationAsk.cake;
+      return conv.language === 'hinglish' 
+        ? `Bahut badhiya! 🎂 Cake customize karna hai:\n\n1️⃣ Pet ka naam\n2️⃣ Flavor (Chicken/Mutton/Peanut Butter)\n3️⃣ Size (Small/Medium/Large)\n4️⃣ Cake pe message (optional)`
+        : `Wonderful choice! 🎂 To customize your cake:\n\n1️⃣ Pet's name\n2️⃣ Flavor (Chicken/Mutton/Peanut Butter)\n3️⃣ Size (Small/Medium/Large)\n4️⃣ Message on cake (optional)`;
     }
-
-    // No customization needed
     conv.state = this.states.QUANTITY;
-    return random(RESPONSES.itemConfirm) + ` ${item.name} selected!\n\n` + random(RESPONSES.quantityAsk);
+    return R.quantityAsk;
   }
 
-  async handleCustomization(conv, text, aiResponse) {
+  async handleCustomization(conv, text, R) {
     const item = conv.tempItem;
-
-    // Extract customization details
     if (!conv.tempItem.customization) {
       conv.tempItem.customization = {};
     }
-
-    // Parse the message
-    const lines = text.split(/\n|,|\./);
+    const lines = text.split(/[\n,\.]/);
     lines.forEach(line => {
       if (line.toLowerCase().includes('name')) {
         conv.tempItem.customization.petName = line.split(/[:\-]/).pop().trim();
@@ -362,67 +279,58 @@ class OrderFlow {
         conv.tempItem.customization.message = line.split(/[:\-]/).pop().trim();
       }
     });
-
-    // Check if we have enough info
     const hasName = conv.tempItem.customization.petName;
     const hasFlavor = conv.tempItem.customization.flavor;
     const hasSize = conv.tempItem.customization.size || typeof item.price !== 'object';
-
     if (hasName && hasFlavor && hasSize) {
       conv.state = this.states.QUANTITY;
-      return `Perfect! 🐶 ${conv.tempItem.customization.petName} is going to love it!
-
-How many ${item.name}s would you like?`;
+      const petName = conv.tempItem.customization.petName;
+      return conv.language === 'hinglish'
+        ? `Perfect! 🐶 ${petName} ko bahut pasand aayega!\n\nKitne ${item.name} chahiye?`
+        : `Perfect! 🐶 ${petName} is going to love it!\n\nHow many ${item.name}s would you like?`;
     }
-
-    // Need more info
     const missing = [];
-    if (!hasName) missing.push("pet's name");
-    if (!hasFlavor) missing.push("flavor");
-    if (!hasSize) missing.push("size");
-
-    return RESPONSES.needMoreInfo(missing);
+    if (!hasName) missing.push(conv.language === 'hinglish' ? "pet ka naam" : "pet's name");
+    if (!hasFlavor) missing.push(conv.language === 'hinglish' ? "flavor" : "flavor");
+    if (!hasSize) missing.push(conv.language === 'hinglish' ? "size" : "size");
+    return conv.language === 'hinglish'
+      ? `Thoda aur info chahiye: ${missing.join(', ')} 🐾`
+      : `Almost there! Please also provide: ${missing.join(', ')} 🐾`;
   }
 
-  async handleQuantity(conv, text, aiResponse) {
+  async handleQuantity(conv, text, R) {
     const qty = parseInt(text.match(/\d+/)?.[0]);
-
     if (!qty || qty < 1) {
-      return random(RESPONSES.quantityAsk) + " (e.g., '2' ya 'just 1') 😊";
+      return R.quantityAsk + (conv.language === 'hinglish' ? " (jaise: '2' ya 'just 1')" : " (e.g., '2' or 'just 1')");
     }
-
     conv.tempItem.quantity = qty;
     conv.state = this.states.ADDRESS;
-    return random(RESPONSES.addressAsk);
+    return R.addressAsk;
   }
 
-  async handleAddress(conv, text, aiResponse) {
+  async handleAddress(conv, text, R) {
     conv.tempItem.address = text;
     conv.order.items.push({ ...conv.tempItem });
     conv.state = this.states.CONFIRM;
-
-    // Calculate total
     const total = conv.order.items.reduce((sum, item) => {
       const price = item.finalPrice || item.price;
       return sum + (price * item.quantity);
     }, 0);
-
     const orderSummary = conv.order.items.map(item =>
       `• ${item.name} x${item.quantity} = ₹${(item.finalPrice || item.price) * item.quantity}`
     ).join('\n');
-
-    return RESPONSES.confirmAsk(orderSummary, total);
+    return conv.language === 'hinglish'
+      ? `📋 Order Summary:\n\n${orderSummary}\n\n💰 Total: ₹${total}\n\nSahi hai?\n\n✅ YES likho confirm karne ke liye\n❌ NO likho cancel karne ke liye`
+      : `📋 Order Summary:\n\n${orderSummary}\n\n💰 Total: ₹${total}\n\nDoes everything look correct?\n\n✅ Reply YES to confirm\n❌ Reply NO to cancel`;
   }
 
-  async handleConfirmation(conv, text, aiResponse) {
-    if (['yes', 'confirm', 'yeah', 'yep', 'haan', 'yup', 'sure'].includes(text.toLowerCase())) {
-      // Save order
+  async handleConfirmation(conv, text, R) {
+    if (['yes', 'confirm', 'yeah', 'yep', 'haan', 'yup', 'sure', 'h'].includes(text.toLowerCase())) {
       const orderId = `PC-${Date.now().toString(36).toUpperCase().slice(-6)}`;
       const total = conv.order.items.reduce((sum, item) => {
         const price = item.finalPrice || item.price;
         return sum + (price * item.quantity);
       }, 0);
-
       const order = {
         id: orderId,
         phone: conv.phone,
@@ -432,39 +340,25 @@ How many ${item.name}s would you like?`;
         status: 'confirmed',
         timestamp: new Date().toISOString()
       };
-
       this.saveOrder(order);
-
-      // Reset conversation
       conversations.set(conv.phone, {
         phone: conv.phone,
         state: this.states.IDLE,
         messages: [],
+        lastResponseTime: 0,
+        language: conv.language,
         order: { items: [], customerName: '', address: '', phone: conv.phone },
         tempItem: null
       });
-
-      // Try NVIDIA for dynamic confirmation
-      try {
-        const aiResponse = await nvidia.generateOrderConfirmation(orderId, total);
-        if (aiResponse) return aiResponse;
-      } catch (e) {
-        console.log('NVIDIA confirmation failed:', e.message);
-      }
-      return random(RESPONSES.orderConfirmed(orderId, total));
+      return conv.language === 'hinglish'
+        ? `✅ Order Confirmed! Puppychef pe bharosa karne ke liye dhanyawaad 🎉\n\n🔖 Order ID: ${orderId}\n💰 Total: ₹${total}\n\nHum jaldi contact karenge delivery ke liye.\n\nAapke pet ko bahut pasand aayega! 🐕🎂\n\nKuch aur chahiye? "Hi" likho 👋`
+        : `✅ Order Confirmed! Thank you for choosing Puppychef 🎉\n\n🔖 Order ID: ${orderId}\n💰 Total: ₹${total}\n\nWe'll contact you shortly for delivery.\n\nYour pet is going to love it! 🐕🎂\n\nNeed anything else? Just say "Hi" 👋`;
     }
-
     if (['no', 'cancel', 'nope', 'nahi', 'stop'].includes(text.toLowerCase())) {
       conv.state = this.states.GREETING;
-      return random(RESPONSES.restart);
+      return R.restart;
     }
-
-    return "Please reply YES ✅ to confirm your order or NO ❌ to cancel";
-  }
-
-  async generateNaturalResponse(conv, text, fallback) {
-    // Using fallback response (Gemini disabled)
-    return fallback;
+    return R.confirmHelp;
   }
 
   saveOrder(order) {
@@ -483,6 +377,10 @@ How many ${item.name}s would you like?`;
     } catch (e) {
       return [];
     }
+  }
+
+  getConversation(phone) {
+    return conversations.get(phone);
   }
 }
 
