@@ -1,0 +1,22 @@
+◇ injecting env (5) from .env // tip: ⌘ override existing { override: true }
+╔════════════════════════════════════════════════╗
+║   🐕 PUPPYCHEF WhatsApp Order Bot 🐕           ║
+╠════════════════════════════════════════════════╣
+║  Server running on port: 3000                  ║
+║  Webhook URL: http://localhost:3000/webhook     ║
+║                                                ║
+║  API Endpoints:                                ║
+║  • GET  /              - Health check         ║
+║  • GET  /api/menu      - Get menu             ║
+║  • GET  /api/orders    - Get orders           ║
+║  • POST /api/test      - Test bot             ║
+║                                                ║
+║  WhatsApp Setup:                               ║
+║  1. Verify token: puppychef2024...   ║
+║  2. Webhook URL needs ngrok tunnel            ║
+║  3. Add credentials to .env                   ║
+╚════════════════════════════════════════════════╝
+Webhook verification attempt: { mode: 'subscribe', token: 'puppychef2024' }
+✅ Webhook verified successfully!
+Webhook verification attempt: { mode: 'subscribe', token: 'puppychef2024' }
+✅ Webhook verified successfully!

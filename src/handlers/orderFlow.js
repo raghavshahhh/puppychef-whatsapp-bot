@@ -1,0 +1,489 @@
+// Order Flow with NVIDIA NIM AI Integration
+// Uses NVIDIA NIM API when available, falls back to warm, natural responses
+
+const MENU = require('../config/menu');
+const nvidia = require('./nvidiaNim');
+const fs = require('fs');
+const path = require('path');
+
+// Storage
+const conversations = new Map();
+const ORDERS_FILE = path.join(__dirname, '../models/orders.json');
+const STATE_FILE = path.join(__dirname, '../models/conversations.json');
+
+// Load saved conversations
+function loadConversations() {
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+      for (const [phone, conv] of Object.entries(data)) {
+        conversations.set(phone, conv);
+      }
+    }
+  } catch (e) {
+    console.log('No saved conversations found');
+  }
+}
+
+// Save conversations to file
+function saveConversations() {
+  try {
+    const data = {};
+    for (const [phone, conv] of conversations) {
+      data[phone] = conv;
+    }
+    fs.writeFileSync(STATE_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('Error saving conversations:', e);
+  }
+}
+
+// Load on startup
+loadConversations();
+
+// Ensure orders file exists
+if (!fs.existsSync(path.dirname(ORDERS_FILE))) {
+  fs.mkdirSync(path.dirname(ORDERS_FILE), { recursive: true });
+}
+if (!fs.existsSync(ORDERS_FILE)) {
+  fs.writeFileSync(ORDERS_FILE, '[]');
+}
+
+// Professional + Friendly response variations (polished, warm tone)
+const RESPONSES = {
+  greetings: [
+    `Hello! Welcome to Puppychef 🐕
+
+Delhi's favourite pet bakery - where we craft fresh, healthy cakes & treats for your furry companions 🎂🦴
+
+How may I help you today?`,
+    `Hi there! 👋 Thank you for reaching out to Puppychef.
+
+We specialize in custom pet cakes, treats, and nutritious meals for your beloved pets 🐾
+
+What would you like to order?`,
+    `Welcome to Puppychef! 🎂
+
+Freshly baked with love for your pets ❤️
+
+Please let me know what you're looking for - cakes, treats, or pet food?`,
+    `Good day! 🐕 Puppychef at your service.
+
+We'd love to make something special for your pet!
+
+How can we assist you today?`
+  ],
+  menuPrompts: [
+    `Please take a look at our menu and let us know what interests you 😊`,
+    `Here are our offerings - which category would you like to explore? 👇`,
+    `Feel free to browse our selection below 🐾`,
+    `Our menu is ready for you - what catches your eye? 🎂`
+  ],
+  categoryAck: {
+    1: [`🎂 Custom Cakes - Excellent choice! Which cake would you like to see?`, `Wonderful! Our custom cakes are freshly baked 🎂 Which one interests you?`, `Perfect! Let's find the ideal cake for your pet 🎉`],
+    2: [`🦴 Treats & Biscuits - Great selection! Which treat would you prefer?`, `Healthy treats coming up! 🐕 Which option would you like?`, `Wonderful choice for your pet's snack time 🦴`],
+    3: [`🍖 Pet Food - Nutrition first! Which meal option works for you?`, `Healthy meals for your pet 🥘 Please select an option:`, `Great for your pet's daily nutrition 🍲`],
+    4: [`☕ Cafe - While your pet enjoys their treat! 😊`, `For you! Our cafe selection ☕`, `Perfect! Something for the pet parent too ☕`]
+  },
+  itemConfirm: [
+    `Excellent choice! 🎉`, `Perfect selection! 🐾`, `Wonderful! 👌`, `Lovely choice! 🎂`
+  ],
+  customizationAsk: {
+    cake: `Wonderful choice! 🎂 To customize your cake, please provide:
+
+1️⃣ Pet's name (for the cake)
+2️⃣ Flavor preference (Chicken, Mutton, Peanut Butter)
+3️⃣ Size (Small/Medium/Large)
+4️⃣ Message for the cake (optional)
+
+Please share these details when you're ready 😊`,
+    default: `Great choice! 🎉 How many would you like?`
+  },
+  quantityAsk: [
+    `How many would you like? 😊`, `Please let us know the quantity 🛒`, `How many shall we prepare for you? 👇`
+  ],
+  addressAsk: [
+    `Perfect! 🛒 Please share your delivery address:
+
+(Full address with pincode)
+
+Or type "pickup" if you'd prefer to collect from our Safdarjung Enclave store 📍`,
+    `Almost there! Please provide your delivery address 📍
+
+(Include pincode for faster delivery)
+
+Store pickup available at Safdarjung Enclave 🏪`
+  ],
+  confirmAsk: (orderSummary, total) => `📋 Order Summary:
+
+${orderSummary}
+
+💰 Total: ₹${total}
+
+Does everything look correct?
+
+✅ Reply YES to confirm
+❌ Reply NO to make changes`,
+  orderConfirmed: (orderId, total) => [
+    `✅ Order Confirmed! Thank you for choosing Puppychef 🎉
+
+🔖 Order ID: ${orderId}
+💰 Total: ₹${total}
+
+We'll contact you shortly to confirm delivery timing.
+
+Your pet is going to love it! 🐕🎂
+
+Need anything else? Just say "Hi" 👋`,
+    `🎉 Order Placed Successfully!
+
+🔖 Order ID: ${orderId}
+💰 Amount: ₹${total}
+
+Thank you for trusting Puppychef ❤️
+
+Our team will reach out for delivery coordination.
+
+Have a wonderful day! 🐾`
+  ],
+  invalidCategory: [
+    `Please select a valid option (1-4) 😊`,
+    `Kindly choose between 1, 2, 3, or 4 👆`,
+    `Please enter a number from 1 to 4 🎯`
+  ],
+  invalidItem: [
+    `Please select a, b, c, or d 😊`,
+    `Kindly choose one of the available letters 👆`,
+    `Please enter a letter (a-d) or type "back" to return to menu 🔙`
+  ],
+  needMoreInfo: (missing) => `Almost there! Could you please also provide ${missing.join(', ')}? 🐾`,
+  restart: [
+    `No problem! Let's start fresh 😊 How may I help you?`,
+    `Understood! Starting over for you 👋 What would you like to order?`,
+    `Of course! Let's try again 🐕 What can we get for your pet today?`
+  ]
+};
+
+// Helper to get random response
+const random = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+class OrderFlow {
+  constructor() {
+    this.states = {
+      IDLE: 'idle',
+      GREETING: 'greeting',
+      SELECTING_CATEGORY: 'selecting_category',
+      SELECTING_ITEM: 'selecting_item',
+      CUSTOMIZING: 'customizing',
+      QUANTITY: 'quantity',
+      ADDRESS: 'address',
+      CONFIRM: 'confirm',
+      COMPLETED: 'completed'
+    };
+  }
+
+  getConversation(phone) {
+    if (!conversations.has(phone)) {
+      conversations.set(phone, {
+        phone,
+        state: this.states.IDLE,
+        messages: [],
+        order: {
+          items: [],
+          customerName: '',
+          address: '',
+          phone: phone
+        },
+        tempItem: null
+      });
+    }
+    return conversations.get(phone);
+  }
+
+  addMessage(phone, role, content) {
+    const conv = this.getConversation(phone);
+    conv.messages.push({ role, content, timestamp: new Date() });
+  }
+
+  // Main handler - uses Gemini when available, falls back to warm responses
+  async handleMessage(phone, message) {
+    const text = message.trim();
+    const conv = this.getConversation(phone);
+
+    console.log(`[DEBUG] handleMessage: phone=${phone}, message="${text}", currentState=${conv.state}`);
+
+    this.addMessage(phone, 'user', text);
+
+    // Reset commands
+    if (['hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'hii'].includes(text.toLowerCase())) {
+      conv.state = this.states.GREETING;
+      console.log(`[DEBUG] Reset command triggered, state set to GREETING`);
+      const greeting = await this.generateGreeting(conv);
+      this.addMessage(phone, 'assistant', greeting);
+      console.log(`[DEBUG] Returning greeting, state is now: ${conv.state}`);
+      return greeting;
+    }
+
+    // Process based on current state (Gemini disabled - using professional fallback responses)
+    const aiResponse = null;
+    let response;
+    switch (conv.state) {
+      case this.states.IDLE:
+      case this.states.GREETING:
+        console.log(`[DEBUG] Calling handleGreeting`);
+        response = await this.handleGreeting(conv, text, aiResponse);
+        console.log(`[DEBUG] handleGreeting returned, state is now: ${conv.state}`);
+        break;
+      case this.states.SELECTING_CATEGORY:
+        response = await this.handleCategorySelection(conv, text, aiResponse);
+        break;
+      case this.states.SELECTING_ITEM:
+        response = await this.handleItemSelection(conv, text, aiResponse);
+        break;
+      case this.states.CUSTOMIZING:
+        response = await this.handleCustomization(conv, text, aiResponse);
+        break;
+      case this.states.QUANTITY:
+        response = await this.handleQuantity(conv, text, aiResponse);
+        break;
+      case this.states.ADDRESS:
+        response = await this.handleAddress(conv, text, aiResponse);
+        break;
+      case this.states.CONFIRM:
+        response = await this.handleConfirmation(conv, text, aiResponse);
+        break;
+      default:
+        response = random(RESPONSES.greetings);
+    }
+
+    this.addMessage(phone, 'assistant', response);
+    saveConversations();
+    return response;
+  }
+
+  buildContext(conv) {
+    return {
+      state: conv.state,
+      order: conv.order,
+      tempItem: conv.tempItem,
+      lastMessages: conv.messages.slice(-5)
+    };
+  }
+
+  async generateGreeting(conv) {
+    // Try NVIDIA NIM first, then fallback to static responses
+    try {
+      const aiResponse = await nvidia.generateGreeting();
+      if (aiResponse) return aiResponse;
+    } catch (e) {
+      console.log('NVIDIA API failed, using fallback:', e.message);
+    }
+    return random(RESPONSES.greetings);
+  }
+
+  async handleGreeting(conv, text, aiResponse) {
+    const menuText = MENU.getMenuText();
+    // Transition to category selection and process the input
+    conv.state = this.states.SELECTING_CATEGORY;
+    // Now process the input as category selection
+    return await this.handleCategorySelection(conv, text, aiResponse);
+  }
+
+  async handleCategorySelection(conv, text, aiResponse) {
+    const categoryId = parseInt(text);
+
+    if (isNaN(categoryId) || categoryId < 1 || categoryId > 4) {
+      return random(RESPONSES.invalidCategory) + "\n\n" + MENU.getMenuText();
+    }
+
+    const category = MENU.getCategoryById(categoryId);
+    conv.currentCategory = categoryId;
+    conv.state = this.states.SELECTING_ITEM;
+
+    // Try NVIDIA for dynamic category acknowledgment
+    let ack;
+    try {
+      ack = await nvidia.generateMenuPrompt(category.name);
+    } catch (e) {
+      ack = RESPONSES.categoryAck[categoryId] ? random(RESPONSES.categoryAck[categoryId]) : random(RESPONSES.itemConfirm);
+    }
+    return ack + "\n\n" + MENU.getCategoryItemsText(categoryId);
+  }
+
+  async handleItemSelection(conv, text, aiResponse) {
+    const category = MENU.getCategoryById(conv.currentCategory);
+    const letter = text.toLowerCase().charAt(0);
+    const itemIndex = letter.charCodeAt(0) - 97;
+
+    if (itemIndex < 0 || itemIndex >= category.items.length) {
+      return random(RESPONSES.invalidItem) + " Or type 'back' to see categories again.";
+    }
+
+    const item = category.items[itemIndex];
+    conv.tempItem = { ...item, category: category.name };
+
+    // Check if customization needed
+    if (item.customizations && item.customizations.length > 0) {
+      conv.state = this.states.CUSTOMIZING;
+      return RESPONSES.customizationAsk.cake;
+    }
+
+    // No customization needed
+    conv.state = this.states.QUANTITY;
+    return random(RESPONSES.itemConfirm) + ` ${item.name} selected!\n\n` + random(RESPONSES.quantityAsk);
+  }
+
+  async handleCustomization(conv, text, aiResponse) {
+    const item = conv.tempItem;
+
+    // Extract customization details
+    if (!conv.tempItem.customization) {
+      conv.tempItem.customization = {};
+    }
+
+    // Parse the message
+    const lines = text.split(/\n|,|\./);
+    lines.forEach(line => {
+      if (line.toLowerCase().includes('name')) {
+        conv.tempItem.customization.petName = line.split(/[:\-]/).pop().trim();
+      }
+      if (line.toLowerCase().includes('flavor') || item.flavors?.some(f => line.toLowerCase().includes(f.toLowerCase()))) {
+        const flavor = item.flavors?.find(f => line.toLowerCase().includes(f.toLowerCase()));
+        if (flavor) conv.tempItem.customization.flavor = flavor;
+      }
+      if (line.toLowerCase().includes('size') || ['small', 'medium', 'large'].some(s => line.toLowerCase().includes(s))) {
+        const size = ['small', 'medium', 'large'].find(s => line.toLowerCase().includes(s));
+        if (size) {
+          conv.tempItem.customization.size = size;
+          conv.tempItem.finalPrice = typeof item.price === 'object' ? item.price[size] : item.price;
+        }
+      }
+      if (line.toLowerCase().includes('message') || line.toLowerCase().includes('write')) {
+        conv.tempItem.customization.message = line.split(/[:\-]/).pop().trim();
+      }
+    });
+
+    // Check if we have enough info
+    const hasName = conv.tempItem.customization.petName;
+    const hasFlavor = conv.tempItem.customization.flavor;
+    const hasSize = conv.tempItem.customization.size || typeof item.price !== 'object';
+
+    if (hasName && hasFlavor && hasSize) {
+      conv.state = this.states.QUANTITY;
+      return `Perfect! 🐶 ${conv.tempItem.customization.petName} is going to love it!
+
+How many ${item.name}s would you like?`;
+    }
+
+    // Need more info
+    const missing = [];
+    if (!hasName) missing.push("pet's name");
+    if (!hasFlavor) missing.push("flavor");
+    if (!hasSize) missing.push("size");
+
+    return RESPONSES.needMoreInfo(missing);
+  }
+
+  async handleQuantity(conv, text, aiResponse) {
+    const qty = parseInt(text.match(/\d+/)?.[0]);
+
+    if (!qty || qty < 1) {
+      return random(RESPONSES.quantityAsk) + " (e.g., '2' ya 'just 1') 😊";
+    }
+
+    conv.tempItem.quantity = qty;
+    conv.state = this.states.ADDRESS;
+    return random(RESPONSES.addressAsk);
+  }
+
+  async handleAddress(conv, text, aiResponse) {
+    conv.tempItem.address = text;
+    conv.order.items.push({ ...conv.tempItem });
+    conv.state = this.states.CONFIRM;
+
+    // Calculate total
+    const total = conv.order.items.reduce((sum, item) => {
+      const price = item.finalPrice || item.price;
+      return sum + (price * item.quantity);
+    }, 0);
+
+    const orderSummary = conv.order.items.map(item =>
+      `• ${item.name} x${item.quantity} = ₹${(item.finalPrice || item.price) * item.quantity}`
+    ).join('\n');
+
+    return RESPONSES.confirmAsk(orderSummary, total);
+  }
+
+  async handleConfirmation(conv, text, aiResponse) {
+    if (['yes', 'confirm', 'yeah', 'yep', 'haan', 'yup', 'sure'].includes(text.toLowerCase())) {
+      // Save order
+      const orderId = `PC-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+      const total = conv.order.items.reduce((sum, item) => {
+        const price = item.finalPrice || item.price;
+        return sum + (price * item.quantity);
+      }, 0);
+
+      const order = {
+        id: orderId,
+        phone: conv.phone,
+        items: conv.order.items,
+        total: total,
+        address: conv.order.items[0]?.address || '',
+        status: 'confirmed',
+        timestamp: new Date().toISOString()
+      };
+
+      this.saveOrder(order);
+
+      // Reset conversation
+      conversations.set(conv.phone, {
+        phone: conv.phone,
+        state: this.states.IDLE,
+        messages: [],
+        order: { items: [], customerName: '', address: '', phone: conv.phone },
+        tempItem: null
+      });
+
+      // Try NVIDIA for dynamic confirmation
+      try {
+        const aiResponse = await nvidia.generateOrderConfirmation(orderId, total);
+        if (aiResponse) return aiResponse;
+      } catch (e) {
+        console.log('NVIDIA confirmation failed:', e.message);
+      }
+      return random(RESPONSES.orderConfirmed(orderId, total));
+    }
+
+    if (['no', 'cancel', 'nope', 'nahi', 'stop'].includes(text.toLowerCase())) {
+      conv.state = this.states.GREETING;
+      return random(RESPONSES.restart);
+    }
+
+    return "Please reply YES ✅ to confirm your order or NO ❌ to cancel";
+  }
+
+  async generateNaturalResponse(conv, text, fallback) {
+    // Using fallback response (Gemini disabled)
+    return fallback;
+  }
+
+  saveOrder(order) {
+    try {
+      const orders = JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8'));
+      orders.push(order);
+      fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
+    } catch (e) {
+      console.error('Error saving order:', e);
+    }
+  }
+
+  getAllOrders() {
+    try {
+      return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8'));
+    } catch (e) {
+      return [];
+    }
+  }
+}
+
+module.exports = new OrderFlow();

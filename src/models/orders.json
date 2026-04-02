@@ -1,0 +1,44 @@
+[
+  {
+    "id": "PC-HJBVY5",
+    "phone": "+919999111222",
+    "items": [
+      {
+        "id": "cake_1",
+        "name": "Dog Birthday Cake",
+        "price": {
+          "small": 800,
+          "medium": 1500,
+          "large": 2500
+        },
+        "description": "Special birthday cake with pet-safe ingredients",
+        "customizations": [
+          "flavor",
+          "size",
+          "message",
+          "pet_name"
+        ],
+        "flavors": [
+          "Chicken",
+          "Mutton",
+          "Peanut Butter",
+          "Banana",
+          "Apple"
+        ],
+        "category": "🎂 Custom Cakes",
+        "customization": {
+          "petName": "Bruno",
+          "flavor": "Chicken",
+          "size": "medium"
+        },
+        "finalPrice": 1500,
+        "quantity": 1,
+        "address": "123 Safdarjung Enclave, New Delhi - 110029"
+      }
+    ],
+    "total": 1500,
+    "address": "123 Safdarjung Enclave, New Delhi - 110029",
+    "status": "confirmed",
+    "timestamp": "2026-04-02T13:53:16.157Z"
+  }
+]

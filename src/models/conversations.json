@@ -1,0 +1,208 @@
+{
+  "+919988776800": {
+    "phone": "+919988776800",
+    "state": "selecting_category",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi",
+        "timestamp": "2026-04-02T13:41:34.799Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Good day! 🐕 Puppychef at your service.\n\nWe'd love to make something special for your pet!\n\nHow can we assist you today?",
+        "timestamp": "2026-04-02T13:41:34.800Z"
+      },
+      {
+        "role": "user",
+        "content": "1",
+        "timestamp": "2026-04-02T13:41:34.815Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Here are our offerings - which category would you like to explore? 👇\n\n🐕 *Welcome to Puppychef!*\n\nFreshly baked treats for your furry friends 🐾\n\n*Select a category:*\n\n1️⃣ 🎂 Custom Cakes\n   Freshly baked cakes for your furry friends\n\n2️⃣ 🦴 Treats & Biscuits\n   Healthy homemade treats\n\n3️⃣ 🍖 Pet Food\n   Nutritious meals for pets\n\n4️⃣ ☕ Cafe (For Humans)\n   While your pet enjoys their treat\n\nReply with a number (1-4) to order!\nOr type \"MENU\" anytime to see this again.",
+        "timestamp": "2026-04-02T13:41:34.815Z"
+      }
+    ],
+    "order": {
+      "items": [],
+      "customerName": "",
+      "address": "",
+      "phone": "+919988776800"
+    },
+    "tempItem": null
+  },
+  "+919988776822": {
+    "phone": "+919988776822",
+    "state": "selecting_item",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi",
+        "timestamp": "2026-04-02T13:42:14.453Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Hello! Welcome to Puppychef 🐕\n\nDelhi's favourite pet bakery - where we craft fresh, healthy cakes & treats for your furry companions 🎂🦴\n\nHow may I help you today?",
+        "timestamp": "2026-04-02T13:42:14.453Z"
+      },
+      {
+        "role": "user",
+        "content": "1",
+        "timestamp": "2026-04-02T13:42:20.423Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Wonderful! Our custom cakes are freshly baked 🎂 Which one interests you?\n\n🐕 *🎂 Custom Cakes*\n\na) Dog Birthday Cake\n   Special birthday cake with pet-safe ingredients\n   💰 ₹800-₹2500\n\nb) Pupcakes (Pack of 6)\n   Cupcakes sized for dogs\n   💰 ₹450\n\nc) Mini Cakes\n   Individual portion cakes\n   💰 ₹350\n\nReply with a letter (a, b, c...) to select!\nOr type \"BACK\" to return to main menu.",
+        "timestamp": "2026-04-02T13:42:20.423Z"
+      }
+    ],
+    "order": {
+      "items": [],
+      "customerName": "",
+      "address": "",
+      "phone": "+919988776822"
+    },
+    "tempItem": null,
+    "currentCategory": 1
+  },
+  "+919988776866": {
+    "phone": "+919988776866",
+    "state": "selecting_item",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi",
+        "timestamp": "2026-04-02T13:42:59.812Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Hi there! 👋 Thank you for reaching out to Puppychef.\n\nWe specialize in custom pet cakes, treats, and nutritious meals for your beloved pets 🐾\n\nWhat would you like to order?",
+        "timestamp": "2026-04-02T13:42:59.813Z"
+      },
+      {
+        "role": "user",
+        "content": "1",
+        "timestamp": "2026-04-02T13:42:59.832Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Wonderful! Our custom cakes are freshly baked 🎂 Which one interests you?\n\n🐕 *🎂 Custom Cakes*\n\na) Dog Birthday Cake\n   Special birthday cake with pet-safe ingredients\n   💰 ₹800-₹2500\n\nb) Pupcakes (Pack of 6)\n   Cupcakes sized for dogs\n   💰 ₹450\n\nc) Mini Cakes\n   Individual portion cakes\n   💰 ₹350\n\nReply with a letter (a, b, c...) to select!\nOr type \"BACK\" to return to main menu.",
+        "timestamp": "2026-04-02T13:42:59.833Z"
+      }
+    ],
+    "order": {
+      "items": [],
+      "customerName": "",
+      "address": "",
+      "phone": "+919988776866"
+    },
+    "tempItem": null,
+    "currentCategory": 1
+  },
+  "+919999111222": {
+    "phone": "+919999111222",
+    "state": "idle",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": "🎉 Order Placed Successfully!\n\n🔖 Order ID: PC-HJBVY5\n💰 Amount: ₹1500\n\nThank you for trusting Puppychef ❤️\n\nOur team will reach out for delivery coordination.\n\nHave a wonderful day! 🐾",
+        "timestamp": "2026-04-02T13:53:16.158Z"
+      }
+    ],
+    "order": {
+      "items": [],
+      "customerName": "",
+      "address": "",
+      "phone": "+919999111222"
+    },
+    "tempItem": null
+  },
+  "+919999111444": {
+    "phone": "+919999111444",
+    "state": "selecting_item",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi",
+        "timestamp": "2026-04-02T13:59:37.681Z"
+      },
+      {
+        "role": "assistant",
+        "content": " Hi there! Welcome to Puppychef 🐾 \n\nWe're so excited to bake something special for your furry friend! What would you like to order today?",
+        "timestamp": "2026-04-02T14:01:09.498Z"
+      },
+      {
+        "role": "user",
+        "content": "1",
+        "timestamp": "2026-04-02T14:01:25.705Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Excellent choice! 🎉\n\n🐕 *🎂 Custom Cakes*\n\na) Dog Birthday Cake\n   Special birthday cake with pet-safe ingredients\n   💰 ₹800-₹2500\n\nb) Pupcakes (Pack of 6)\n   Cupcakes sized for dogs\n   💰 ₹450\n\nc) Mini Cakes\n   Individual portion cakes\n   💰 ₹350\n\nReply with a letter (a, b, c...) to select!\nOr type \"BACK\" to return to main menu.",
+        "timestamp": "2026-04-02T14:06:27.990Z"
+      }
+    ],
+    "order": {
+      "items": [],
+      "customerName": "",
+      "address": "",
+      "phone": "+919999111444"
+    },
+    "tempItem": null,
+    "currentCategory": 1
+  },
+  "+919999111555": {
+    "phone": "+919999111555",
+    "state": "selecting_item",
+    "messages": [
+      {
+        "role": "user",
+        "content": "1",
+        "timestamp": "2026-04-02T14:06:21.987Z"
+      }
+    ],
+    "order": {
+      "items": [],
+      "customerName": "",
+      "address": "",
+      "phone": "+919999111555"
+    },
+    "tempItem": null,
+    "currentCategory": 1
+  },
+  "+919999111666": {
+    "phone": "+919999111666",
+    "state": "selecting_item",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi",
+        "timestamp": "2026-04-02T14:20:29.274Z"
+      },
+      {
+        "role": "assistant",
+        "content": " Hello and welcome to Puppychef! 🐾🧁 We'd love to bake something special for your furry friend. What would you like to order today?",
+        "timestamp": "2026-04-02T14:22:06.616Z"
+      },
+      {
+        "role": "user",
+        "content": "1",
+        "timestamp": "2026-04-02T14:22:06.634Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Excellent choice! 🎉\n\n🐕 *🎂 Custom Cakes*\n\na) Dog Birthday Cake\n   Special birthday cake with pet-safe ingredients\n   💰 ₹800-₹2500\n\nb) Pupcakes (Pack of 6)\n   Cupcakes sized for dogs\n   💰 ₹450\n\nc) Mini Cakes\n   Individual portion cakes\n   💰 ₹350\n\nReply with a letter (a, b, c...) to select!\nOr type \"BACK\" to return to main menu.",
+        "timestamp": "2026-04-02T14:27:08.774Z"
+      }
+    ],
+    "order": {
+      "items": [],
+      "customerName": "",
+      "address": "",
+      "phone": "+919999111666"
+    },
+    "tempItem": null,
+    "currentCategory": 1
+  }
+}
