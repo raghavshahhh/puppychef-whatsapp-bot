@@ -21,6 +21,12 @@ function loadConversations() {
     if (fs.existsSync(STATE_FILE)) {
       const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
       for (const [phone, conv] of Object.entries(data)) {
+        // Ensure all required fields exist on loaded conversations
+        if (conv.lastResponseTime === undefined) conv.lastResponseTime = 0;
+        if (conv.language === undefined) conv.language = 'english';
+        if (conv.messages === undefined) conv.messages = [];
+        if (conv.order === undefined) conv.order = { items: [], customerName: '', address: '', phone: phone };
+        if (conv.tempItem === undefined) conv.tempItem = null;
         conversations.set(phone, conv);
       }
     }
