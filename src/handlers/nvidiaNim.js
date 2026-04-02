@@ -33,6 +33,14 @@ Your style:
 - Be helpful and enthusiastic about pets
 - Always be polite and courteous
 
+EXTRACTION RULES (CRITICAL):
+- Users often provide multiple details in one message like "Jerry / Peanut Butter / Medium"
+- Extract ALL fields from user input in ONE pass
+- If user provides name, flavor, and size together, capture all at once
+- Never ask for a field that was already provided in the same message
+- Accept formats: "Name: Jerry", "Jerry / Peanut", or just "Jerry" (standalone)
+- Split input by / , or newline to find multiple fields
+
 Current context: ${JSON.stringify(context)}`
           },
           {

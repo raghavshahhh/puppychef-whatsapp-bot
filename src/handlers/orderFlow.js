@@ -264,34 +264,78 @@ class OrderFlow {
     return R.quantityAsk;
   }
 
+  // SMART MULTI-FIELD PARSER - handles /, , and newlines
   async handleCustomization(conv, text, R) {
     const item = conv.tempItem;
     if (!conv.tempItem.customization) {
       conv.tempItem.customization = {};
     }
-    const lines = text.split(/[\n,\.]/);
-    lines.forEach(line => {
-      if (line.toLowerCase().includes('name')) {
-        conv.tempItem.customization.petName = line.split(/[:\-]/).pop().trim();
+
+    const lowerText = text.toLowerCase();
+
+    // Split by / , \n or comma - multiple field separator support
+    const segments = text.split(/[\/\n,]+/).map(s => s.trim()).filter(s => s);
+
+    // Parse each segment intelligently
+    segments.forEach(segment => {
+      const segLower = segment.toLowerCase();
+
+      // Pet Name: Look for "name:", "naam:", "pet:", or standalone 2-15 letter word
+      if (/^(name|naam|pet)\s*[:\-]?\s*/i.test(segment)) {
+        const name = segment.replace(/^(name|naam|pet)\s*[:\-]?\s*/i, '').trim();
+        if (name && name.length > 1) conv.tempItem.customization.petName = name;
+      } else if (!conv.tempItem.customization.petName && /^[a-z]{2,15}$/i.test(segment.trim())) {
+        // Standalone name like "Jerry", "Shivangi"
+        conv.tempItem.customization.petName = segment.trim();
       }
-      if (line.toLowerCase().includes('flavor') || item.flavors?.some(f => line.toLowerCase().includes(f.toLowerCase()))) {
-        const flavor = item.flavors?.find(f => line.toLowerCase().includes(f.toLowerCase()));
-        if (flavor) conv.tempItem.customization.flavor = flavor;
+
+      // Flavor: Look for flavor keywords
+      if (/flavou?r|peanut|chicken|mutton|vanilla|beef|fish/i.test(segLower)) {
+        const flavors = ['peanut butter', 'chicken', 'mutton', 'vanilla', 'beef', 'fish'];
+        const found = flavors.find(f => segLower.includes(f));
+        if (found) conv.tempItem.customization.flavor = found.charAt(0).toUpperCase() + found.slice(1);
       }
-      if (line.toLowerCase().includes('size') || ['small', 'medium', 'large'].some(s => line.toLowerCase().includes(s))) {
-        const size = ['small', 'medium', 'large'].find(s => line.toLowerCase().includes(s));
-        if (size) {
-          conv.tempItem.customization.size = size;
-          conv.tempItem.finalPrice = typeof item.price === 'object' ? item.price[size] : item.price;
-        }
+
+      // Size: Look for size keywords
+      if (/small|medium|large|sm|md|lg|xl/i.test(segLower)) {
+        if (/\bsmall\b|\\bsm\\b/i.test(segLower)) conv.tempItem.customization.size = 'small';
+        else if (/\bmedium\b|\\bmd\\b/i.test(segLower)) conv.tempItem.customization.size = 'medium';
+        else if (/\blarge\b|\\blg\\b|\\bxl\\b/i.test(segLower)) conv.tempItem.customization.size = 'large';
       }
-      if (line.toLowerCase().includes('message') || line.toLowerCase().includes('write')) {
-        conv.tempItem.customization.message = line.split(/[:\-]/).pop().trim();
+
+      // Message: Look for message text
+      if (/^(message|msg|write|text)\s*[:\-]?\s*/i.test(segment)) {
+        const msg = segment.replace(/^(message|msg|write|text)\s*[:\-]?\s*/i, '').trim();
+        if (msg) conv.tempItem.customization.message = msg;
       }
     });
+
+    // Also try full-text extraction as fallback
+    if (!conv.tempItem.customization.petName) {
+      const nameMatch = text.match(/(?:name|naam|pet)\s*[:\-]?\s*([a-z]{2,15})/i);
+      if (nameMatch) conv.tempItem.customization.petName = nameMatch[1];
+    }
+    if (!conv.tempItem.customization.flavor) {
+      const flavorMatch = text.match(/(peanut\s*butter|chicken|mutton|vanilla|beef|fish)/i);
+      if (flavorMatch) conv.tempItem.customization.flavor = flavorMatch[1].charAt(0).toUpperCase() + flavorMatch[1].slice(1).toLowerCase();
+    }
+    if (!conv.tempItem.customization.size) {
+      const sizeMatch = text.match(/\b(small|medium|large)\b/i);
+      if (sizeMatch) {
+        conv.tempItem.customization.size = sizeMatch[1].toLowerCase();
+        conv.tempItem.finalPrice = typeof item.price === 'object' ? item.price[sizeMatch[1].toLowerCase()] : item.price;
+      }
+    }
+
     const hasName = conv.tempItem.customization.petName;
     const hasFlavor = conv.tempItem.customization.flavor;
     const hasSize = conv.tempItem.customization.size || typeof item.price !== 'object';
+
+    // Update price if size found
+    if (conv.tempItem.customization.size && typeof item.price === 'object') {
+      conv.tempItem.finalPrice = item.price[conv.tempItem.customization.size];
+    }
+
     if (hasName && hasFlavor && hasSize) {
       conv.state = this.states.QUANTITY;
       const petName = conv.tempItem.customization.petName;
@@ -299,13 +343,16 @@ class OrderFlow {
         ? `Perfect! 🐶 ${petName} ko bahut pasand aayega!\n\nKitne ${item.name} chahiye?`
         : `Perfect! 🐶 ${petName} is going to love it!\n\nHow many ${item.name}s would you like?`;
     }
+
+    // Tell user what's still needed
     const missing = [];
     if (!hasName) missing.push(conv.language === 'hinglish' ? "pet ka naam" : "pet's name");
-    if (!hasFlavor) missing.push(conv.language === 'hinglish' ? "flavor" : "flavor");
-    if (!hasSize) missing.push(conv.language === 'hinglish' ? "size" : "size");
+    if (!hasFlavor) missing.push(conv.language === 'hinglish' ? "flavor (chicken/mutton/peanut butter)" : "flavor (Chicken/Mutton/Peanut Butter)");
+    if (!hasSize) missing.push(conv.language === 'hinglish' ? "size (small/medium/large)" : "size (Small/Medium/Large)");
+
     return conv.language === 'hinglish'
-      ? `Thoda aur info chahiye: ${missing.join(', ')} 🐾`
-      : `Almost there! Please also provide: ${missing.join(', ')} 🐾`;
+      ? `Thoda aur info chahiye: ${missing.join(', ')} 🐾\n\nEk hi message mein sab bata do: Naam / Flavor / Size`
+      : `Almost there! Please provide: ${missing.join(', ')} 🐾\n\nYou can send all together like: Name / Flavor / Size`;
   }
 
   async handleQuantity(conv, text, R) {

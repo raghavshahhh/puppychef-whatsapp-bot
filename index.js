@@ -43,6 +43,8 @@ app.get('/webhook', (req, res) => {
 });
 
 // Webhook receiver (POST) - Handle incoming messages
+const recentWelcomes = new Set(); // Prevent duplicate welcomes
+
 app.post('/webhook', async (req, res) => {
   console.log('📩 Webhook received:', JSON.stringify(req.body, null, 2));
 
@@ -58,23 +60,40 @@ app.post('/webhook', async (req, res) => {
 
       if (messages && messages.length > 0) {
         const message = messages[0];
-        const from = message.from; // Customer phone number
+        const from = message.from;
         const text = message.text?.body || '';
+        const msgId = message.id; // Unique message ID for deduplication
 
-        console.log(`📱 Message from ${from}: ${text}`);
+        console.log(`📱 Message from ${from}: ${text} (ID: ${msgId})`);
 
-        // Process message through order flow
-        const response = await orderFlow.handleMessage(from, text);
+        // Skip if duplicate welcome in last 5 seconds
+        const isGreeting = ['hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'hii', 'help'].includes(text.toLowerCase());
+        if (isGreeting) {
+          const welcomeKey = `${from}:welcome`;
+          if (recentWelcomes.has(welcomeKey)) {
+            console.log(`[GUARD] Skipping duplicate welcome for ${from}`);
+            return res.status(200).send('OK');
+          }
+          recentWelcomes.add(welcomeKey);
+          setTimeout(() => recentWelcomes.delete(welcomeKey), 5000);
+        }
 
-        // Send reply
-        await sendWhatsAppMessage(from, response);
+        // Process message with deduplication
+        const response = await orderFlow.handleMessage(from, text, msgId);
+
+        // Only send if we got a response (not rate limited or duplicate)
+        if (response) {
+          await sendWhatsAppMessage(from, response);
+        } else {
+          console.log(`[SKIP] No response for ${from} (rate limit or duplicate)`);
+        }
       }
     }
 
     res.status(200).send('OK');
   } catch (error) {
     console.error('❌ Webhook error:', error);
-    res.status(500).send('Error');
+    res.status(200).send('OK'); // Always return 200 to Meta
   }
 });
 
