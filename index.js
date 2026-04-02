@@ -6,8 +6,12 @@ const bodyParser = require('body-parser');
 const axios = require('axios');
 require('dotenv').config();
 
+// Choose mode: 'ai' for full LLM agent, 'state' for rule-based
+const BOT_MODE = process.env.BOT_MODE || 'ai';
+
 const MENU = require('./src/config/menu');
 const orderFlow = require('./src/handlers/orderFlow');
+const aiAgent = require('./src/handlers/aiAgent');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -78,8 +82,13 @@ app.post('/webhook', async (req, res) => {
           setTimeout(() => recentWelcomes.delete(welcomeKey), 5000);
         }
 
-        // Process message with deduplication
-        const response = await orderFlow.handleMessage(from, text, msgId);
+        // Process message with AI Agent (smart) or OrderFlow (structured)
+        let response;
+        if (BOT_MODE === 'ai') {
+          response = await aiAgent.handleMessage(from, text, msgId);
+        } else {
+          response = await orderFlow.handleMessage(from, text, msgId);
+        }
 
         // Only send if we got a response (not rate limited or duplicate)
         if (response) {
@@ -182,12 +191,16 @@ app.post('/api/test', async (req, res) => {
       return res.status(400).json({ error: 'Phone and message required' });
     }
 
-    const response = await orderFlow.handleMessage(phone, message);
+    // Use AI Agent if enabled
+    const response = BOT_MODE === 'ai'
+      ? await aiAgent.handleMessage(phone, message)
+      : await orderFlow.handleMessage(phone, message);
 
     res.json({
       phone,
       received: message,
-      reply: response
+      reply: response,
+      mode: BOT_MODE
     });
   } catch (error) {
     console.error('Test endpoint error:', error);
