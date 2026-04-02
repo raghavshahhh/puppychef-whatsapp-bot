@@ -1,0 +1,87 @@
+{
+  "+911234567890": {
+    "phone": "+911234567890",
+    "state": "quantity",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi",
+        "timestamp": "2026-04-02T16:27:05.598Z"
+      },
+      {
+        "role": "assistant",
+        "content": " Hi there! Welcome to Puppychef 🐾 We're Delhi's favorite spot for custom dog cakes, treats, and yummy bites for your furry friends. What can we whip up for your pup today? 🎂🐶",
+        "timestamp": "2026-04-02T16:27:35.080Z"
+      },
+      {
+        "role": "user",
+        "content": "1",
+        "timestamp": "2026-04-02T16:27:58.600Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Please take a look at our menu and let us know what interests you 😊\n\n🐕 *🎂 Custom Cakes*\n\na) Dog Birthday Cake\n   Special birthday cake with pet-safe ingredients\n   💰 ₹800-₹2500\n\nb) Pupcakes (Pack of 6)\n   Cupcakes sized for dogs\n   💰 ₹450\n\nc) Mini Cakes\n   Individual portion cakes\n   💰 ₹350\n\nReply with a letter (a, b, c...) to select!\nOr type \"BACK\" to return to main menu.",
+        "timestamp": "2026-04-02T16:27:58.601Z"
+      },
+      {
+        "role": "user",
+        "content": "a",
+        "timestamp": "2026-04-02T16:28:29.277Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Wonderful choice! 🎂 To customize your cake:\n\n1️⃣ Pet's name\n2️⃣ Flavor (Chicken/Mutton/Peanut Butter)\n3️⃣ Size (Small/Medium/Large)\n4️⃣ Message on cake (optional)",
+        "timestamp": "2026-04-02T16:28:29.277Z"
+      },
+      {
+        "role": "user",
+        "content": "Shivangi / Peanut butter / Medium",
+        "timestamp": "2026-04-02T16:28:49.378Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Perfect! 🐶 Shivangi is going to love it!\n\nHow many Dog Birthday Cakes would you like?",
+        "timestamp": "2026-04-02T16:28:49.378Z"
+      }
+    ],
+    "lastResponseTime": 1775147329378,
+    "language": "english",
+    "order": {
+      "items": [],
+      "customerName": "",
+      "address": "",
+      "phone": "+911234567890"
+    },
+    "tempItem": {
+      "id": "cake_1",
+      "name": "Dog Birthday Cake",
+      "price": {
+        "small": 800,
+        "medium": 1500,
+        "large": 2500
+      },
+      "description": "Special birthday cake with pet-safe ingredients",
+      "customizations": [
+        "flavor",
+        "size",
+        "message",
+        "pet_name"
+      ],
+      "flavors": [
+        "Chicken",
+        "Mutton",
+        "Peanut Butter",
+        "Banana",
+        "Apple"
+      ],
+      "category": "🎂 Custom Cakes",
+      "customization": {
+        "petName": "Shivangi",
+        "flavor": "Peanut butter",
+        "size": "medium"
+      },
+      "finalPrice": 1500
+    },
+    "currentCategory": 1
+  }
+}
