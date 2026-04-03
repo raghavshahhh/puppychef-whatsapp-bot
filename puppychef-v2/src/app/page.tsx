@@ -317,18 +317,18 @@ export default function LandingPage() {
             Custom cakes, healthy treats & nutritious meals for your furry friends in Delhi
           </p>
 
-          {/* CTA Buttons with Claymorphism */}
-          <div className="flex gap-3">
+          {/* CTA Buttons with Claymorphism - Mobile optimized */}
+          <div className="flex gap-3 w-full">
             <a
               href="https://wa.me/15551817070"
-              className="flex-1 clay-button bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 flex items-center justify-center gap-2 tap-target"
+              className="flex-1 clay-button bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 px-4 flex items-center justify-center gap-2 tap-target min-w-0"
             >
-              <MessageCircle className="w-5 h-5" />
-              Order on WhatsApp
+              <MessageCircle className="w-5 h-5 flex-shrink-0" />
+              <span className="whitespace-nowrap">Order on WhatsApp</span>
             </a>
             <a
               href="tel:+15551817070"
-              className="clay-button-secondary w-14 flex items-center justify-center tap-target"
+              className="clay-button-secondary w-14 flex-shrink-0 flex items-center justify-center tap-target"
             >
               <Phone className="w-5 h-5" />
             </a>
@@ -359,7 +359,7 @@ export default function LandingPage() {
             <span className="text-sm text-slate-500">{filteredItems.length} items</span>
           </div>
 
-          {/* Category Tabs with Clay Style */}
+          {/* Category Tabs with Clay Style - Mobile optimized */}
           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-4 -mx-4 px-4">
             {menuCategories.map(cat => {
               const IconComponent = cat.icon;
@@ -368,12 +368,12 @@ export default function LandingPage() {
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={`clay-tab flex items-center gap-2 tap-target ${
+                  className={`clay-tab flex items-center gap-1.5 tap-target flex-shrink-0 ${
                     isActive ? 'clay-tab-active' : 'bg-white text-slate-600'
                   }`}
                 >
-                  <IconComponent className="w-4 h-4" />
-                  {cat.name}
+                  <IconComponent className="w-4 h-4 flex-shrink-0" />
+                  <span className="whitespace-nowrap">{cat.name}</span>
                 </button>
               );
             })}
@@ -455,11 +455,11 @@ export default function LandingPage() {
 
             <a
               href="https://wa.me/15551817070"
-              className="clay-button bg-gradient-to-r from-green-500 to-green-600 text-white py-3.5 w-full flex items-center justify-center gap-2 tap-target"
+              className="clay-button bg-gradient-to-r from-green-500 to-green-600 text-white py-3.5 px-4 w-full flex items-center justify-center gap-2 tap-target"
             >
-              <MessageCircle className="w-5 h-5" />
-              Chat on WhatsApp
-              <ArrowRight className="w-4 h-4" />
+              <MessageCircle className="w-5 h-5 flex-shrink-0" />
+              <span className="whitespace-nowrap">Chat on WhatsApp</span>
+              <ArrowRight className="w-4 h-4 flex-shrink-0" />
             </a>
           </div>
         </div>
@@ -563,10 +563,10 @@ export default function LandingPage() {
                 </div>
                 <a
                   href={whatsappLink}
-                  className="clay-button bg-gradient-to-r from-green-500 to-green-600 text-white py-4 w-full flex items-center justify-center gap-2 tap-target"
+                  className="clay-button bg-gradient-to-r from-green-500 to-green-600 text-white py-4 px-4 w-full flex items-center justify-center gap-2 tap-target"
                 >
-                  <MessageCircle className="w-5 h-5" />
-                  Order on WhatsApp
+                  <MessageCircle className="w-5 h-5 flex-shrink-0" />
+                  <span className="whitespace-nowrap">Order on WhatsApp</span>
                 </a>
               </div>
             )}
