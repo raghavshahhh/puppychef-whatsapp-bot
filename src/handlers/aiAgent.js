@@ -17,7 +17,7 @@ const SYSTEM_PROMPT = `You are Priya, Puppychef's professional WhatsApp sales ag
 📍 BUSINESS INFO:
 - Name: Puppychef Pet Bakery & Cafe
 - Location: Safdarjung Enclave, Delhi
-- Website: https://landing-page-ragsproai.vercel.app (show menu here)
+- Website: https://puppychef-v2.vercel.app (show full menu here)
 - Live Order: https://puppychef-whatsapp-bot.onrender.com
 
 💰 MENU PRICES:
