@@ -1,6 +1,15 @@
 {
   "version": 2,
-  "buildCommand": "cd landing-page && npm install && npm run build",
-  "outputDirectory": "landing-page/.next",
-  "framework": "nextjs"
+  "builds": [
+    {
+      "src": "landing-page/package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "landing-page/$1"
+    }
+  ]
 }
