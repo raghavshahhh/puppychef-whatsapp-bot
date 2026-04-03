@@ -1,119 +1,88 @@
-// AI AGENT MODE - Full LLM-driven conversation (NO state machine)
-// Priya - Puppychef's WhatsApp sales agent
+// AI AGENT "Priya" - Puppychef WhatsApp Sales Agent
+// FIXED: No duplicates, no auto-messages, direct professional responses
 
 const https = require('https');
-const { MENU, getMenuShort } = require('../config/menuEnhanced');
+const { getMenuShort, getItemDetails } = require('../config/menuEnhanced');
 
-const conversations = new Map(); // phone -> message history
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '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';
 const NVIDIA_URL = 'integrate.api.nvidia.com';
 
-const SYSTEM_PROMPT = `You are Priya, Puppychef's enthusiastic WhatsApp sales agent 🐕
+// Store conversations and message tracking
+const conversations = new Map();
+const processedMessageIds = new Set();
 
-🏪 BUSINESS: Puppychef Pet Bakery & Cafe
-📍 Location: Safdarjung Enclave, Delhi
-🌐 Website: puppychef.dotpe.in
-⏰ Timing: 10 AM - 8 PM (Tue-Sun)
+// SYSTEM PROMPT - Professional, Direct, No Fluff
+const SYSTEM_PROMPT = `You are Priya, Puppychef's professional WhatsApp sales agent.
 
-📋 MENU WITH PRICES:
+📍 BUSINESS INFO:
+- Name: Puppychef Pet Bakery & Cafe
+- Location: Safdarjung Enclave, Delhi
+- Website: https://landing-page-ragsproai.vercel.app (show menu here)
+- Live Order: https://puppychef-whatsapp-bot.onrender.com
 
-🎂 CUSTOM CAKES:
-• Dog Birthday Cake:
-  - Small (500g): ₹800
-  - Medium (1kg): ₹1500
-  - Large (2kg): ₹2500
-  - Flavors: Chicken, Mutton, Peanut Butter, Banana & Honey
-  - Prep time: 24 hours
-
-• Pupcakes (Pack of 6): ₹450
-  - Weight: 300g total
-  - Flavors: Chicken, Mutton, Peanut Butter, Mixed
-
-• Mini Cakes: ₹350
-  - Weight: 200g
-  - Flavors: Chicken, Peanut Butter
+💰 MENU PRICES:
+🎂 CAKES:
+- Dog Birthday Cake: Small ₹800 | Medium ₹1500 | Large ₹2500
+- Pupcakes (6): ₹450
+- Mini Cakes: ₹350
 
 🦴 TREATS:
-• Peanut Butter Biscuits: ₹250 (200g)
-• Chicken Jerky: ₹350 (150g)
-• Training Treats: ₹200 (100g)
-• Dental Sticks: ₹180 (Pack of 10)
+- Peanut Butter Biscuits: ₹250
+- Chicken Jerky: ₹350
+- Training Treats: ₹200
+- Dental Sticks: ₹180
 
-🍖 PET FOOD:
-• Homemade Gravy: ₹120 (300ml)
-• Dry Kibble: ₹500/kg
-• Wet Food Cups: ₹80 (150g)
+🍖 FOOD:
+- Homemade Gravy: ₹120
+- Dry Kibble: ₹500/kg
+- Wet Food Cups: ₹80
 
-👩‍💼 YOUR PERSONALITY (Priya):
-- Warm, friendly Delhi girl - slightly playful but professional
-- Speak NATURAL HINGLISH (mix Hindi-English like real Delhiites)
-- NEVER ask for "option 1-4" or numbered inputs
-- Understand naturally: "cake", "cakes", "birthday cake for my dog" - all same
-- Proactively suggest and upsell: "Iske saath Peanut Butter Biscuits bhi le lo, bahut pasand aayega!"
-- Collect details through conversation, not forms
-- If partial info given, ask casually what's missing
-- Handle abusers with humor: "Arre bhaiya, gussa mat karo, cake lo! 😄"
-- Remember EVERYTHING from conversation
-- When order complete, show summary with TOTAL price and ask "Confirm karein?"
-- Payment: Cash on delivery or UPI
+☕ CAFE:
+- Coffee: ₹150 | Tea: ₹80
+- Sandwiches: ₹200
 
-🗣️ LANGUAGE RULES:
-- User English mein baat kare → English reply
-- User Hinglish/Hindi mein baat kare → Hinglish reply
-- Natural mix: "Arre waah!", "Bilkul!", "Theek hai na", "Koi baat nahi"
+🎯 YOUR RULES:
+1. Reply SHORT (2-3 lines max)
+2. Ask ONE question at a time
+3. NEVER send multiple messages
+4. NEVER message first - only reply
+5. NEVER repeat same message
+6. Direct to the point - no "How can I make your day special" fluff
+7. When order complete → show summary + total + ask "Confirm?"
 
-🚫 NEVER DO:
-- "Please select option 1-4"
-- "Reply with a number"
-- Reset conversation mid-way
-- Ask for info already given
-- Robotic responses
+🗣️ LANGUAGE:
+- User English → English reply
+- User Hindi/Hinglish → Hinglish reply
+- Natural mix ok: "Bilkul", "Theek hai", "Kya chahiye"
+
+❌ NEVER DO:
+- "How can I help you today?" (too generic)
+- Multiple messages in one go
+- Send messages without user asking
+- Repeat "Welcome to Puppychef" every time
+- Ask for details already provided
 
 ✅ ALWAYS DO:
-- Keep responses SHORT (2-4 lines max)
-- Ask ONE question at a time
-- Use bullet points for menu
-- Calculate TOTAL price when order complete
-- Remember everything from conversation
+- Direct price quotes
+- One clear question
+- Wait for user reply
+- Calculate total when items selected`;
 
-📝 FORMAT RULES:
-- GREETING: 1-2 lines welcome only
-- MENU: Use • bullet points, short format
-- QUESTIONS: Ask ONE thing: "Size kya chahiye? Small/Medium/Large"
-- CONFIRM: Item + Price + Total in clean format
-
-🎯 CONVERSATION FLOW:
-1. User: "Hi" → Reply: "Namaste! Kya order karna hai? Cake/Treats/Food?"
-2. User: "Cake" → Reply: "Dog Birthday Cake? Size: Small ₹800/Medium ₹1500/Large ₹2500"
-3. User: "Medium" → Reply: "Flavor: Chicken/Mutton/Peanut Butter?"
-4. User: "Peanut Butter" → Reply: "Pet ka naam?"
-5. User: "Shivangi" → Reply: "Kitne cake chahiye?"
-6. User: "1" → Reply: "Address batao?"
-7. User: "Address" → Reply: "📋 Order:\n• Dog Cake Medium PB: ₹1500\nTotal: ₹1500\nConfirm? Yes/No"
-
-💬 RESPONSE STYLE:
-- Short, crisp replies
-- One question at a time
-- No long paragraphs
-- Hinglish for desi feel`;
-
-
-// Call NVIDIA NIM API
+// Call NVIDIA API
 async function callNIM(messages) {
   return new Promise((resolve, reject) => {
     const payload = {
-      model: 'meta/llama-3.3-70b-instruct', // Fast, free, good for sales
+      model: 'meta/llama-3.3-70b-instruct',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         ...messages
       ],
-      max_tokens: 500,
-      temperature: 0.8,
-      top_p: 0.95
+      max_tokens: 150,
+      temperature: 0.7,
+      top_p: 0.9
     };
 
     const postData = JSON.stringify(payload);
-
     const options = {
       hostname: NVIDIA_URL,
       path: '/v1/chat/completions',
@@ -137,131 +106,174 @@ async function callNIM(messages) {
             resolve(null);
           }
         } catch (e) {
-          console.error('NIM parse error:', e);
           resolve(null);
         }
       });
     });
 
-    req.on('error', (e) => {
-      console.error('NIM API error:', e.message);
-      resolve(null);
-    });
-
+    req.on('error', () => resolve(null));
     req.write(postData);
     req.end();
   });
 }
 
-// Detect language from user message
+// Detect language
 function detectLanguage(text) {
   const hasHindi = /[\u0900-\u097F]/.test(text);
-  const hinglishWords = ['haan', 'nahi', 'bata', 'kaise', 'kya', 'mujhe', 'hai', 'mein', 'aap', 'hoga', 'kar', 'rha', 'jarur', 'thoda', 'bahut', 'accha', 'theek', 'chahiye', 'bhejo', 'dekh', 'samajh', 'kya', 'ho', 'gaya', 'bhai', 'yaar', 'bas', 'abhi', 'phir', 'matlab', 'chal', 'thik', 'badiya', 'sahi', 'galat', 'kaun', 'kahan', 'kab', 'kyu', 'kaise', 'kitna', 'sab', 'kuch', 'bahar', 'andar', 'upar', 'neeche', 'lelo', 'lena', 'do', 'batao', 'btao', 'btana', 'dekho', 'sun', 'sunlo', 'hojayega', 'hojao', 'karlo', 'karde', 'dedo', 'bataiye'];
-  const lowerText = text.toLowerCase();
-  const isHinglish = hinglishWords.some(word => lowerText.includes(word));
-  return hasHindi || isHinglish ? 'hinglish' : 'english';
+  const hinglishWords = ['haan', 'nahi', 'kya', 'hai', 'mein', 'chahiye', 'batao', 'karo', 'thik', 'bhai', 'yaar'];
+  const lower = text.toLowerCase();
+  return hasHindi || hinglishWords.some(w => lower.includes(w)) ? 'hinglish' : 'english';
 }
 
-// Main handler
+// MAIN HANDLER - Fixed deduplication
 async function handleMessage(phone, userText, messageId = null) {
-  // Deduplication
-  const dedupKey = messageId || `${phone}:${userText}:${Math.floor(Date.now()/3000)}`;
-  if (conversations.has(`_dedup_${dedupKey}`)) {
-    console.log(`[DEDUP] Skipping duplicate: ${dedupKey}`);
+  // CRITICAL: Deduplication by messageId
+  if (messageId && processedMessageIds.has(messageId)) {
+    console.log(`[DEDUP] Already processed: ${messageId}`);
     return null;
   }
-  conversations.set(`_dedup_${dedupKey}`, true);
-  setTimeout(() => conversations.delete(`_dedup_${dedupKey}`), 10000);
+  if (messageId) {
+    processedMessageIds.add(messageId);
+    // Cleanup old IDs (keep last 100)
+    if (processedMessageIds.size > 100) {
+      const iter = processedMessageIds.values();
+      processedMessageIds.delete(iter.next().value);
+    }
+  }
 
-  // Get or init conversation
+  // Get or create conversation
   if (!conversations.has(phone)) {
     conversations.set(phone, {
       history: [],
       language: 'english',
-      lastTime: Date.now()
+      lastReply: '',
+      lastTime: 0,
+      order: { items: [], total: 0 }
     });
   }
 
   const conv = conversations.get(phone);
-
-  // Rate limiting (min 2 seconds)
   const now = Date.now();
-  if (now - conv.lastTime < 2000) {
-    await new Promise(r => setTimeout(r, 2000));
+
+  // Rate limit: min 1 second between replies
+  if (now - conv.lastTime < 1000) {
+    console.log(`[RATE LIMIT] Too fast for ${phone}`);
+    return null;
   }
-  conv.lastTime = now;
 
   // Detect language
   conv.language = detectLanguage(userText);
 
-  // Add user message to history
+  // Add user message
   conv.history.push({ role: 'user', content: userText });
+  if (conv.history.length > 10) conv.history.shift();
 
-  // Keep last 15 messages only
-  if (conv.history.length > 15) {
-    conv.history.splice(0, conv.history.length - 15);
-  }
+  console.log(`[PRIYA] ${phone} | ${userText}`);
 
-  console.log(`[AI AGENT] ${phone} | Lang: ${conv.language} | Msg: "${userText}"`);
-
-  // Call LLM
+  // Generate response
   let reply = await callNIM(conv.history);
 
-  // Fallback if LLM fails
+  // Fallback if API fails
   if (!reply) {
-    const fallbacks = conv.language === 'hinglish'
-      ? [`Arre! Thoda busy hoon, dubara try karo na 🙏`, `Oops! Network issue hai, ek minute ruko 😅`, `Sorry bhaiya, fir se bataoge? 📞`]
-      : [`Oops! Having a little trouble, could you try again? 🙏`, `Sorry! Technical hiccup, one sec! 😅`, `My bad! Could you repeat that? 📞`];
-    reply = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+    reply = getFallbackReply(userText, conv.language);
   }
 
-  // Add assistant reply to history
+  // Prevent duplicate replies
+  if (reply === conv.lastReply) {
+    console.log(`[DEDUP] Same reply blocked`);
+    return null;
+  }
+
+  // Update conversation
   conv.history.push({ role: 'assistant', content: reply });
+  conv.lastReply = reply;
+  conv.lastTime = now;
 
   return reply;
 }
 
-// Check if user is asking for image/photo
-function isAskingForImage(text) {
+// Smart fallback replies
+function getFallbackReply(text, lang) {
   const lower = text.toLowerCase();
-  const imageWords = ['photo', 'image', 'pic', 'picture', 'dekho', 'dikhao', 'photo dikhao', 'kaisa dikhta hai', 'kya dikhta hai', 'sample', 'example'];
-  return imageWords.some(word => lower.includes(word));
+
+  // Greeting
+  if (/^(hi|hello|hey|namaste|hii)$/i.test(lower)) {
+    return lang === 'hinglish'
+      ? `👋 Hello! Kya order karna hai? Cake, Treats, ya Food?`
+      : `👋 Hi! What would you like to order? Cake, Treats, or Food?`;
+  }
+
+  // Menu request
+  if (/(menu|price|rate|cost)/i.test(lower)) {
+    return getMenuShort();
+  }
+
+  // Cake inquiry
+  if (/(cake|birthday)/i.test(lower)) {
+    return lang === 'hinglish'
+      ? `🎂 Dog Birthday Cake chahiye?\nSmall ₹800 | Medium ₹1500 | Large ₹2500\n\nSize batao?`
+      : `🎂 Dog Birthday Cake?\nSmall ₹800 | Medium ₹1500 | Large ₹2500\n\nWhat size?`;
+  }
+
+  // Size selection
+  if (/(small|medium|large)/i.test(lower)) {
+    return lang === 'hinglish'
+      ? `✅ ${lower} size noted.\nFlavor: Chicken, Mutton, ya Peanut Butter?`
+      : `✅ ${lower} size noted.\nFlavor: Chicken, Mutton, or Peanut Butter?`;
+  }
+
+  // Flavor mentioned
+  if (/(chicken|mutton|peanut)/i.test(lower)) {
+    return lang === 'hinglish'
+      ? `✅ ${lower} flavor. Pet ka naam?`
+      : `✅ ${lower} flavor. Pet's name?`;
+  }
+
+  // Address
+  if (/(address|location|deliver)/i.test(lower)) {
+    return lang === 'hinglish'
+      ? `📍 Address batao delivery ke liye`
+      : `📍 Please share delivery address`;
+  }
+
+  // Default
+  return lang === 'hinglish'
+    ? `Samajh nahi aaya. Menu dekhna hai?`
+    : `Didn't get that. Want to see menu?`;
 }
 
-// Get image URL for item
+// Check if asking for image
+function isAskingForImage(text) {
+  const words = ['photo', 'pic', 'image', 'dikhao', 'dekho', 'kaisa dikhta'];
+  return words.some(w => text.toLowerCase().includes(w));
+}
+
+// Get image for item
 function getImageForItem(text) {
   const lower = text.toLowerCase();
-  if (lower.includes('cake') || lower.includes('birthday')) {
+  if (lower.includes('cake')) {
     return {
       url: 'https://images.unsplash.com/photo-1548199569-3f1c1f55cca6?w=800',
-      caption: '🎂 Dog Birthday Cake - Freshly baked with pet-safe ingredients!'
+      caption: '🎂 Dog Birthday Cake - Freshly baked!'
     };
   }
-  if (lower.includes('pupcake') || lower.includes('cupcake')) {
-    return {
-      url: 'https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=800',
-      caption: '🧁 Pupcakes - Pack of 6, perfect for sharing!'
-    };
-  }
-  if (lower.includes('treat') || lower.includes('biscuit') || lower.includes('jerky')) {
+  if (lower.includes('treat')) {
     return {
       url: 'https://images.unsplash.com/photo-1582798358481-d199fb7347bb?w=800',
-      caption: '🦴 Healthy Treats - Made with love for your furry friend!'
+      caption: '🦴 Healthy Treats'
     };
   }
   return null;
 }
 
-// Clear old conversations every hour
+// Cleanup old conversations every 30 min
 setInterval(() => {
-  const oneHourAgo = Date.now() - 3600000;
+  const thirtyMinAgo = Date.now() - 30 * 60 * 1000;
   for (const [phone, conv] of conversations) {
-    if (phone.startsWith('_')) continue; // Skip dedup keys
-    if (conv.lastTime < oneHourAgo) {
+    if (conv.lastTime < thirtyMinAgo) {
       conversations.delete(phone);
-      console.log(`[CLEANUP] Removed old conversation: ${phone}`);
     }
   }
-}, 3600000);
+}, 30 * 60 * 1000);
 
-module.exports = { handleMessage, detectLanguage, isAskingForImage, getImageForItem };
+module.exports = { handleMessage, isAskingForImage, getImageForItem };

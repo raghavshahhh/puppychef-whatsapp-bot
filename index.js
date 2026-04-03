@@ -26,6 +26,11 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'puppychef_verify_token_123';
 
+// LIVE LINKS
+const LANDING_PAGE_URL = 'https://landing-page-ragsproai.vercel.app';
+const RENDER_URL = 'https://puppychef-whatsapp-bot.onrender.com';
+const GITHUB_URL = 'https://github.com/raghavshahhh/puppychef-whatsapp-bot';
+
 // ============================================
 // WEBHOOK ENDPOINTS
 // ============================================
