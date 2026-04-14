@@ -1,18 +1,16 @@
-// PUPPYCHEF WhatsApp Order Bot
-// Main Express server + WhatsApp webhook handler
+// RAGSPRO WhatsApp AI Agent
+// Acts as Founder (Raghav) to talk with potential clients, book calls, convert leads
 
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
 require('dotenv').config();
 
-// Choose mode: 'ai' for full LLM agent, 'state' for rule-based
-const BOT_MODE = process.env.BOT_MODE || 'ai';
+// Choose agent: 'ragspro' for RAGSPRO founder mode, 'puppychef' for old mode
+const BOT_MODE = process.env.BOT_MODE || 'ragspro';
 
-const MENU = require('./src/config/menu');
-const orderFlow = require('./src/handlers/orderFlow');
-const aiAgent = require('./src/handlers/aiAgent');
-const { getMenuShort, getItemDetails } = require('./src/config/menuEnhanced');
+const ragsproAgent = require('./src/handlers/ragsproAgent');
+const aiAgent = require('./src/handlers/aiAgent'); // Legacy PUPPYCHEF
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,9 +25,10 @@ const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'puppychef_verify_token_123';
 
 // LIVE LINKS
-const LANDING_PAGE_URL = 'https://puppychef-v2.vercel.app';
-const RENDER_URL = 'https://puppychef-whatsapp-bot.onrender.com';
-const GITHUB_URL = 'https://github.com/raghavshahhh/puppychef-whatsapp-bot';
+const RAGSPRO_WEBSITE = 'https://ragspro.com';
+const LAW_AI_URL = 'https://lawai.ragspro.com';
+const RENDER_URL = 'https://puppychef-whatsapp-bot.onrender.com'; // Same Render URL
+const GITHUB_URL = 'https://github.com/raghavshahhh/ragspro-whatsapp-agent';
 
 // ============================================
 // WEBHOOK ENDPOINTS
@@ -88,18 +87,17 @@ app.post('/webhook', async (req, res) => {
           setTimeout(() => recentWelcomes.delete(welcomeKey), 5000);
         }
 
-        // Process message with AI Agent (smart) or OrderFlow (structured)
+        // Process message with RAGSPRO Agent or Legacy PUPPYCHEF
         let response;
-        let imageToSend = null;
 
-        if (BOT_MODE === 'ai') {
+        if (BOT_MODE === 'ragspro') {
+          // RAGSPRO Founder Mode - handles sales, calls, lead conversion
+          response = await ragsproAgent.handleMessage(from, text, msgId);
+        } else if (BOT_MODE === 'ai') {
+          // Legacy PUPPYCHEF AI Mode
           response = await aiAgent.handleMessage(from, text, msgId);
-
-          // Check if user wants to see product image
-          if (aiAgent.isAskingForImage(text)) {
-            imageToSend = aiAgent.getImageForItem(text);
-          }
         } else {
+          // Legacy PUPPYCHEF rule-based
           response = await orderFlow.handleMessage(from, text, msgId);
         }
 
@@ -108,12 +106,6 @@ app.post('/webhook', async (req, res) => {
           await sendWhatsAppMessage(from, response);
         } else {
           console.log(`[SKIP] No text response for ${from}`);
-        }
-
-        // Send image if requested
-        if (imageToSend) {
-          console.log(`[IMAGE] Sending image to ${from}: ${imageToSend.url}`);
-          await sendWhatsAppImage(from, imageToSend.url, imageToSend.caption);
         }
       }
     }
@@ -209,21 +201,41 @@ async function sendWhatsAppImage(to, imageUrl, caption = '') {
 app.get('/', (req, res) => {
   res.json({
     status: 'running',
-    name: 'Puppychef WhatsApp Bot',
-    version: '1.0.0',
+    name: BOT_MODE === 'ragspro' ? 'RAGSPRO WhatsApp AI Agent' : 'Puppychef WhatsApp Bot',
+    mode: BOT_MODE,
+    version: '2.0.0',
+    founder: 'Raghav Shah',
+    website: 'https://ragspro.com',
     timestamp: new Date().toISOString()
   });
 });
 
-// Get menu
-app.get('/api/menu', (req, res) => {
-  res.json(MENU.categories);
+// Get services
+app.get('/api/services', (req, res) => {
+  const { SERVICES, PORTFOLIO } = require('./src/config/ragsproConfig');
+  res.json({ services: SERVICES, portfolio: PORTFOLIO });
 });
 
-// Get orders
-app.get('/api/orders', (req, res) => {
-  const orders = orderFlow.getAllOrders();
-  res.json(orders);
+// Get bookings
+app.get('/api/bookings', (req, res) => {
+  const bookings = ragsproAgent.getAllBookings ? ragsproAgent.getAllBookings() : [];
+  res.json(bookings);
+});
+
+// Get leads (n8n integration)
+app.get('/api/leads', (req, res) => {
+  const n8nIntegration = require('./src/handlers/n8nIntegration');
+  res.json(n8nIntegration.getAllLeads());
+});
+
+// Webhook for n8n to send messages back
+app.post('/api/n8n/send', async (req, res) => {
+  const { phone, message } = req.body;
+  if (!phone || !message) {
+    return res.status(400).json({ error: 'Phone and message required' });
+  }
+  await sendWhatsAppMessage(phone, message);
+  res.json({ success: true, sent: true });
 });
 
 // Manual send message endpoint (for testing)
@@ -247,10 +259,15 @@ app.post('/api/test', async (req, res) => {
       return res.status(400).json({ error: 'Phone and message required' });
     }
 
-    // Use AI Agent if enabled
-    const response = BOT_MODE === 'ai'
-      ? await aiAgent.handleMessage(phone, message)
-      : await orderFlow.handleMessage(phone, message);
+    // Use RAGSPRO agent or fallback to legacy
+    let response;
+    if (BOT_MODE === 'ragspro') {
+      response = await ragsproAgent.handleMessage(phone, message);
+    } else if (BOT_MODE === 'ai') {
+      response = await aiAgent.handleMessage(phone, message);
+    } else {
+      response = await orderFlow.handleMessage(phone, message);
+    }
 
     res.json({
       phone,
@@ -280,6 +297,7 @@ app.get('/api/debug/:phone', (req, res) => {
 // ============================================
 
 app.listen(PORT, () => {
+  const isRagspro = BOT_MODE === 'ragspro';
   console.log('╔════════════════════════════════════════════════╗');
   console.log('║   🐕 PUPPYCHEF WhatsApp Order Bot 🐕           ║');
   console.log('╠════════════════════════════════════════════════╣');
